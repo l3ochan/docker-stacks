@@ -1,0 +1,73 @@
+version: '3.8'
+networks:
+  ncwb:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.27.0.0/24
+services:
+  nextcloud-whiteboard-server:
+    image: ghcr.io/nextcloud-releases/whiteboard:release
+    user: root
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN 
+      - FOWNER 
+      - DAC_OVERRIDE 
+      - SETUID
+      - SETGID
+    restart: unless-stopped
+    mem_limit: 500m
+    networks:
+      ncwb:
+         ipv4_address: 172.27.0.2
+    ports:
+      - 3002:3002
+    env_file:
+      - stack.env
+    environment:
+      - NEXTCLOUD_URL=${NC_URL}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - STORAGE_STRATEGY=${STORAGE}
+      - REDIS_URL=redis://172.27.0.3:6379
+    depends_on:
+      redis:
+        condition: service_healthy
+        
+  redis:
+    image: redis:latest
+    command: --save 60 1 --loglevel warning
+    restart: unless-stopped
+    mem_limit: "500m"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN 
+      - FOWNER 
+      - DAC_OVERRIDE 
+      - SETUID
+      - SETGID
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep PONG"]
+      start_period: 20s
+      interval: 30s
+      retries: 5
+      timeout: 3s
+    env_file:
+      - stack.env
+    networks:
+      ncwb:
+        ipv4_address: 172.27.0.3
+    volumes:
+      - redis:/data
+
+
+volumes:
+
+  redis:
+    driver: local
